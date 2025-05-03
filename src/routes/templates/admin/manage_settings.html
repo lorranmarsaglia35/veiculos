@@ -1,0 +1,132 @@
+{% extends \"admin/admin_base.html\" %}
+
+{% block title %}Configurações - Admin{% endblock %}
+
+{% block head_extra %}
+<style>
+    .contact-group {
+        border: 1px solid #ddd;
+        padding: 15px;
+        margin-bottom: 15px;
+        border-radius: 4px;
+        background-color: #f9f9f9;
+    }
+    .contact-group label {
+        margin-bottom: 5px;
+    }
+    .contact-group input {
+        margin-bottom: 10px;
+    }
+    #add-contact-btn {
+        margin-top: 10px;
+    }
+    .logo-preview img {
+        max-width: 200px;
+        max-height: 100px;
+        margin-top: 10px;
+        border: 1px solid #ddd;
+        padding: 5px;
+    }
+</style>
+{% endblock %}
+
+{% block admin_content %}
+    <h2>Configurações Gerais</h2>
+
+    <form method="POST" action="{{ url_for(\'admin_bp.manage_settings\') }}" enctype="multipart/form-data">
+        
+        <h4>Logo da Empresa</h4>
+        <div class="form-group">
+            <label for="logo">Enviar Nova Logo (PNG, JPG, GIF, WebP)</label>
+            <input type="file" id="logo" name="logo" class="form-control-file" accept="image/*">
+            {% if settings.logo_filename %}
+                <div class="logo-preview">
+                    <p>Logo Atual:</p>
+                    <img src="{{ url_for(\'uploaded_files\', filename=settings.logo_filename) }}" alt="Logo Atual">
+                </div>
+            {% endif %}
+        </div>
+        <hr>
+
+        <h4>Redes Sociais</h4>
+        {% set social_links = settings.get_social_media_links() %}
+        <div class="form-group">
+            <label for="social_facebook">Link do Facebook</label>
+            <input type="url" id="social_facebook" name="social_facebook" class="form-control" value="{{ social_links.facebook or \'\' }}">
+        </div>
+        <div class="form-group">
+            <label for="social_instagram">Link do Instagram</label>
+            <input type="url" id="social_instagram" name="social_instagram" class="form-control" value="{{ social_links.instagram or \'\' }}">
+        </div>
+        <!-- Add more social media inputs here if needed -->
+        <hr>
+
+        <h4>Contatos de WhatsApp (Vendedores)</h4>
+        <div id="whatsapp-contacts-container">
+            {% set contacts = settings.get_whatsapp_contacts() %}
+            {% for contact in contacts %}
+                <div class="contact-group">
+                    <div class="form-group">
+                        <label>Nome do Contato</label>
+                        <input type="text" name="whatsapp_name[]" class="form-control" value="{{ contact.name }}" placeholder="Ex: Vendedor João">
+                    </div>
+                    <div class="form-group">
+                        <label>Número do WhatsApp (com DDD)</label>
+                        <input type="tel" name="whatsapp_number[]" class="form-control" value="{{ contact.number }}" placeholder="Ex: 5527999998888">
+                    </div>
+                    <button type="button" class="btn btn-danger btn-sm remove-contact-btn">Remover Contato</button>
+                </div>
+            {% else %}
+                <p>Nenhum contato de WhatsApp cadastrado.</p>
+            {% endfor %}
+        </div>
+        <button type="button" id="add-contact-btn" class="btn btn-success btn-sm">Adicionar Contato</button>
+        <hr>
+
+        <button type="submit" class="btn btn-primary">Salvar Configurações</button>
+    </form>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener(\'DOMContentLoaded\', function() {
+        const container = document.getElementById(\'whatsapp-contacts-container\');
+        const addBtn = document.getElementById(\'add-contact-btn\');
+
+        addBtn.addEventListener(\'click\', function() {
+            const contactGroup = document.createElement(\'div\');
+            contactGroup.className = \'contact-group\';
+            contactGroup.innerHTML = `
+                <div class="form-group">
+                    <label>Nome do Contato</label>
+                    <input type="text" name="whatsapp_name[]" class="form-control" placeholder="Ex: Vendedor Maria" required>
+                </div>
+                <div class="form-group">
+                    <label>Número do WhatsApp (com DDD)</label>
+                    <input type="tel" name="whatsapp_number[]" class="form-control" placeholder="Ex: 5527988887777" required>
+                </div>
+                <button type="button" class="btn btn-danger btn-sm remove-contact-btn">Remover Contato</button>
+            `;
+            // Remove the initial "Nenhum contato" message if it exists
+            const noContactMsg = container.querySelector(\'p\');
+            if (noContactMsg) {
+                noContactMsg.remove();
+            }
+            container.appendChild(contactGroup);
+        });
+
+        container.addEventListener(\'click\', function(event) {
+            if (event.target.classList.contains(\'remove-contact-btn\')) {
+                event.target.closest(\'.contact-group\').remove();
+                 // Add back the "Nenhum contato" message if container is empty
+                if (!container.querySelector(\'div.contact-group\')) {
+                    const noContactMsg = document.createElement(\'p\');
+                    noContactMsg.textContent = \'Nenhum contato de WhatsApp cadastrado.\';
+                    container.appendChild(noContactMsg);
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}

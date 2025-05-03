@@ -1,0 +1,63 @@
+{% extends \"admin/admin_base.html\" %}
+
+{% block title %}Gerenciar Veículos - Admin{% endblock %}
+
+{% block admin_content %}
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h2>Gerenciar Veículos</h2>
+        <a href="{{ url_for(\'admin_bp.add_vehicle\') }}" class="btn btn-primary">Adicionar Novo Veículo</a>
+    </div>
+
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Foto Principal</th>
+                <th>Marca</th>
+                <th>Modelo</th>
+                <th>Ano</th>
+                <th>Preço</th>
+                <th>Status</th>
+                <th>Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for vehicle in vehicles %}
+                <tr>
+                    <td>{{ vehicle.id }}</td>
+                    <td>
+                        {% if vehicle.photos %}
+                            <img src="{{ url_for(\'uploaded_files\', filename=vehicle.photos[0].filename) }}" alt="Foto" class="img-thumbnail">
+                        {% else %}
+                            (Sem foto)
+                        {% endif %}
+                    </td>
+                    <td>{{ vehicle.brand }}</td>
+                    <td>{{ vehicle.model }}</td>
+                    <td>{{ vehicle.year }}</td>
+                    <td>R$ {{ "{:,.2f}".format(vehicle.price).replace(\",\",\"x\").replace(\".\",\",\").replace(\"x\",\".\") }}</td>
+                    <td>
+                        {% if vehicle.is_sold %}
+                            <span style="color: red; font-weight: bold;">Vendido</span>
+                        {% else %}
+                            <span style="color: green;">Disponível</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="{{ url_for(\'admin_bp.edit_vehicle\', vehicle_id=vehicle.id) }}" class="btn btn-secondary btn-sm">Editar</a>
+                        <form action="{{ url_for(\'admin_bp.toggle_sold_vehicle\', vehicle_id=vehicle.id) }}" method="POST" style="display: inline-block; margin: 0 5px;">
+                            <button type="submit" class="btn btn-warning btn-sm">{% if vehicle.is_sold %}Marcar Disponível{% else %}Marcar Vendido{% endif %}</button>
+                        </form>
+                        <form action="{{ url_for(\'admin_bp.delete_vehicle\', vehicle_id=vehicle.id) }}" method="POST" style="display: inline-block;" onsubmit="return confirm(\'Tem certeza que deseja excluir este veículo? Esta ação não pode ser desfeita.\');">
+                            <button type="submit" class="btn btn-danger btn-sm">Excluir</button>
+                        </form>
+                    </td>
+                </tr>
+            {% else %}
+                <tr>
+                    <td colspan="8" style="text-align: center;">Nenhum veículo cadastrado.</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}
