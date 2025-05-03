@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, abort
 from src.models import db, Vehicle, Settings, Promotion
 
 public_bp = Blueprint(
-    \'public_bp\
+    'public_bp'
     ', __name__,
     template_folder='../templates', # Point to the main templates folder
     static_folder='../static', 
