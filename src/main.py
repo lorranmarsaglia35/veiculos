@@ -1,82 +1,94 @@
 import os
 import sys
 from datetime import datetime
-# DON'T CHANGE THIS !!!
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-
+from urllib.parse import urlparse
 from flask import Flask, send_from_directory, render_template, session
-# Import db and models
-from src.models import db, Settings, Promotion, Vehicle # Import Vehicle to pass current_year
-# Import blueprints
+from src.models import db, Settings, Promotion, Vehicle
 from src.routes.admin import admin_bp
 from src.routes.public import public_bp
 
-app = Flask(__name__, 
+# Configuração inicial do app
+app = Flask(__name__,
             static_folder=os.path.join(os.path.dirname(__file__), 'static'),
-            template_folder=os.path.join(os.path.dirname(__file__), 'templates')) # Main template folder
+            template_folder=os.path.join(os.path.dirname(__file__), 'templates'))
 
-# Configuration
-app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'a_very_secret_key_for_dev_#$@!fl') # Stronger default secret key
-app.config['SQLALCHEMY_DATABASE_URI'] = f"mysql+pymysql://{os.getenv('DB_USERNAME', 'root')}:{os.getenv('DB_PASSWORD', 'password')}@{os.getenv('DB_HOST', 'localhost')}:{os.getenv('DB_PORT', '3306')}/{os.getenv('DB_NAME', 'mydb')}"
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-UPLOAD_FOLDER = os.path.join(app.root_path, 'static', 'uploads')
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024 # 16MB upload limit
+# Configuração robusta do banco de dados
+def get_database_uri():
+    # 1. Prioridade para DATABASE_URL do Render (PostgreSQL)
+    if 'DATABASE_URL' in os.environ:
+        db_url = os.environ['DATABASE_URL']
+        if db_url.startswith('postgres://'):
+            return db_url.replace('postgres://', 'postgresql+psycopg2://', 1)
+        return db_url
+    
+    # 2. Fallback para MySQL (se variáveis individuais existirem)
+    if all(k in os.environ for k in ['DB_HOST', 'DB_USERNAME', 'DB_PASSWORD', 'DB_NAME']):
+        return f"mysql+pymysql://{os.getenv('DB_USERNAME')}:{os.getenv('DB_PASSWORD')}@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT', '3306')}/{os.getenv('DB_NAME')}"
+    
+    # 3. Fallback para SQLite local (apenas desenvolvimento)
+    return 'sqlite:///' + os.path.join(os.path.dirname(__file__), 'local.db')
 
-# Initialize extensions
+# Configurações principais
+app.config.update(
+    SECRET_KEY=os.getenv('FLASK_SECRET_KEY', 'dev-secret-key-change-me'),
+    SQLALCHEMY_DATABASE_URI=get_database_uri(),
+    SQLALCHEMY_ENGINE_OPTIONS={
+        'pool_pre_ping': True,
+        'pool_recycle': 300,
+        'pool_timeout': 30,
+        'max_overflow': 20,
+    },
+    SQLALCHEMY_TRACK_MODIFICATIONS=False,
+    UPLOAD_FOLDER=os.path.join(os.path.dirname(__file__), 'static', 'uploads'),
+    MAX_CONTENT_LENGTH=16 * 1024 * 1024
+)
+
+# Inicializações
 db.init_app(app)
 
-# Create upload folder if it doesn't exist
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+# Criar pasta de uploads
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-# Register Blueprints
+# Registrar blueprints
 app.register_blueprint(public_bp, url_prefix='/')
 app.register_blueprint(admin_bp, url_prefix='/admin')
 
-# Context processors to make variables available in all templates
+# Context processors
 @app.context_processor
 def inject_global_vars():
-    # Check if admin blueprint exists to conditionally show admin link
-    admin_login_route_exists = 'admin_bp.login' in app.url_map._rules_by_endpoint
-    # Provide current year for validation or footer
-    current_year = datetime.utcnow().year
-    # Provide settings to base template if needed (e.g., for logo in header)
-    settings = None
     try:
-        # This might fail if DB is not ready yet during initial setup
-        settings = Settings.query.first()
-    except Exception:
-        pass # Ignore error during setup
+        settings = Settings.query.first() if db.session.is_active else None
+    except:
+        settings = None
+    
     return dict(
-        admin_login_route_exists=admin_login_route_exists, 
-        current_year=current_year,
-        settings=settings # Make settings available globally
+        admin_login_route_exists='admin_bp.login' in app.url_map._rules_by_endpoint,
+        current_year=datetime.now().year,
+        settings=settings
     )
 
-# Serve uploaded files (ensure this route doesn't conflict with blueprints)
+# Rota para arquivos uploadados
 @app.route('/uploads/<path:filename>')
 def uploaded_files(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
-# Create database tables and initial data if they don't exist
+# Inicialização do banco de dados
 with app.app_context():
     try:
         db.create_all()
-        # Initialize settings if not present
         if not Settings.query.first():
-            initial_settings = Settings()
-            db.session.add(initial_settings)
-            db.session.commit()
-        # Initialize promotion if not present
+            db.session.add(Settings())
         if not Promotion.query.first():
-            initial_promotion = Promotion()
-            db.session.add(initial_promotion)
-            db.session.commit()
+            db.session.add(Promotion())
+        db.session.commit()
     except Exception as e:
-        print(f"Error during initial DB setup: {e}")
-        # Handle DB connection errors gracefully during startup if possible
+        app.logger.error(f"Database initialization error: {str(e)}")
+        # Tentar novamente após 5 segundos se em produção
+        if not app.debug:
+            import time
+            time.sleep(5)
+            db.create_all()
 
 if __name__ == '__main__':
-    # Use debug=False for testing deployment readiness, True for development
-    app.run(host='0.0.0.0', port=5000, debug=False) 
+    app.run(host='0.0.0.0', port=int(os.getenv('PORT', 5000)), debug=False)
 
