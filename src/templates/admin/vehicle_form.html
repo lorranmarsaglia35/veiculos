@@ -1,0 +1,99 @@
+{% extends "admin/admin_base.html" %}
+
+{% block title %}{% if vehicle %}Editar Veículo{% else %}Adicionar Veículo{% endif %} - Admin{% endblock %}
+
+{% block head_extra %}
+<style>
+    .photo-preview-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 10px;
+    }
+    .photo-preview {
+        position: relative;
+        border: 1px solid #ddd;
+        padding: 5px;
+        border-radius: 4px;
+    }
+    .photo-preview img {
+        max-width: 100px;
+        max-height: 100px;
+        display: block;
+    }
+    /* Removed delete button styles as the functionality is not implemented in admin.py */
+</style>
+{% endblock %}
+
+{% block admin_content %}
+    <h2>{% if vehicle %}Editar Veículo{% else %}Adicionar Novo Veículo{% endif %}</h2>
+
+    <form method="POST" action="{{ form_action }}" enctype="multipart/form-data">
+        <div class="form-group">
+            <label for="make">Marca *</label> {# Changed from brand to make #}
+            <input type="text" id="make" name="make" class="form-control" value="{{ vehicle.make if vehicle else request.form.make }}" required>
+        </div>
+        <div class="form-group">
+            <label for="model">Modelo *</label>
+            <input type="text" id="model" name="model" class="form-control" value="{{ vehicle.model if vehicle else request.form.model }}" required>
+        </div>
+        <div class="form-group">
+            <label for="year">Ano *</label>
+            <input type="number" id="year" name="year" class="form-control" value="{{ vehicle.year if vehicle else request.form.year }}" required min="1900" max="{{ current_year + 1 if current_year else 2025 }}"> {# Added current_year context #}
+        </div>
+        <div class="form-group">
+            <label for="mileage">Quilometragem *</label>
+            <input type="number" id="mileage" name="mileage" class="form-control" value="{{ vehicle.mileage if vehicle else request.form.mileage }}" required min="0">
+        </div>
+        <div class="form-group">
+            <label for="color">Cor *</label>
+            <input type="text" id="color" name="color" class="form-control" value="{{ vehicle.color if vehicle else request.form.color }}" required>
+        </div>
+        <div class="form-group">
+            <label for="price">Preço (R$) *</label>
+            <input type="number" step="0.01" id="price" name="price" class="form-control" value="{{ vehicle.price if vehicle else request.form.price }}" required min="0">
+        </div>
+        <div class="form-group">
+            <label for="description">Descrição</label>
+            <textarea id="description" name="description" class="form-control" rows="3">{{ vehicle.description if vehicle else request.form.description }}</textarea>
+        </div>
+        <div class="form-group">
+            <label for="payment_methods">Métodos de Pagamento</label>
+            <textarea id="payment_methods" name="payment_methods" class="form-control" rows="2">{{ vehicle.payment_methods if vehicle else request.form.payment_methods }}</textarea>
+        </div>
+
+        <div class="form-group">
+            <label for="photos">Fotos (Selecione uma ou mais)</label>
+            <input type="file" id="photos" name="photos" class="form-control-file" multiple accept="image/*">
+            <small class="form-text text-muted">Novas fotos substituirão as existentes se estiver editando.</small>
+        </div>
+
+        {% if vehicle and vehicle.photos %}
+            <div class="form-group">
+                <label>Fotos Atuais:</label>
+                <div class="photo-preview-container">
+                    {# Iterate over comma-separated filenames #}
+                    {% for photo_filename in vehicle.photos.split(",") %}
+                        {% if photo_filename %}
+                        <div class="photo-preview">
+                            <img src="{{ url_for("uploaded_files", filename=photo_filename) }}" alt="Foto Atual">
+                            {# Removed delete button as functionality is not in admin.py #}
+                        </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+        {% endif %}
+
+        {% if vehicle %}
+        <div class="form-group form-check">
+            <input type="checkbox" class="form-check-input" id="sold" name="sold" {% if vehicle.sold %}checked{% endif %}>
+            <label class="form-check-label" for="sold">Marcar como Vendido?</label>
+        </div>
+        {% endif %}
+
+        <button type="submit" class="btn btn-primary">Salvar Veículo</button>
+        <a href="{{ url_for("admin.manage_vehicles") }}" class="btn btn-secondary">Cancelar</a>
+    </form>
+{% endblock %}
+
